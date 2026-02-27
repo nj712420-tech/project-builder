@@ -1,158 +1,159 @@
-# # # ai_service.py
-# # import os
-# # import re
-# # import json
-# # from openai import OpenAI
-# # from e2b_code_interpreter import Sandbox
-# # from dotenv import load_dotenv
-
-# # load_dotenv()
-
-# # # Setup the OpenRouter Client
-# # client = OpenAI(
-# #   base_url="https://openrouter.ai/api/v1",
-# #   api_key=os.getenv("OPENROUTER_API_KEY"),
-# # )
-
-# # MODEL = "qwen/qwen-2.5-coder-32b-instruct"
-
-# # def build_and_execute_project(prompt: str, include_db: bool):
-# #     system_msg = (
-# #         "You are an expert AI developer. You MUST return strictly valid JSON. "
-# #         "All keys and string values MUST be enclosed in double quotes. "
-# #         "Do NOT wrap the JSON in markdown blocks. "
-# #         "Format your response exactly like this example:\n"
-# #         "{\n"
-# #         '  "explanation": "A short explanation of the code.",\n'
-# #         '  "code": "def hello():\\n    print(\'Hello World\')"\n'
-# #         "}"
-# #     )
-    
-# #     if include_db:
-# #         system_msg += " Include a SQLite database setup using SQLAlchemy."
-
-# #     # 1. Generate Code
-# #     response = client.chat.completions.create(
-# #         model=MODEL,
-# #         messages=[
-# #             {"role": "system", "content": system_msg},
-# #             {"role": "user", "content": prompt}
-# #         ],
-# #         response_format={ "type": "json_object" }
-# #     )
-    
-# #     raw_output = response.choices[0].message.content.strip()
-    
-# #     # Clean the JSON
-# #     match = re.search(r'\{.*\}', raw_output, re.DOTALL)
-# #     if match:
-# #         raw_output = match.group(0)
-
-# #     parsed_data = json.loads(raw_output)
-# #     generated_code = parsed_data.get("code", "")
-# #     explanation = parsed_data.get("explanation", "")
-
-# #     # 2. Execute Code in Sandbox
-# #     execution_results = []
-# #     with Sandbox.create(api_key=os.getenv("sandbox_key")) as sandbox:
-# #         execution = sandbox.run_code(generated_code)
-        
-# #         if execution.logs.stdout:
-# #             execution_results.extend(execution.logs.stdout)
-# #         if execution.error:
-# #             execution_results.append(f"Execution Error: {execution.error}")
-
-# #     # 3. Return a clean dictionary to the router
-# #     return {
-# #         "status": "success",
-# #         "explanation": explanation,
-# #         "code": generated_code,
-# #         "sandbox_output": "\n".join(execution_results)
-# #     }
-
-
-# # ai_service.py
 # import os
 # import re
-# import json
+# import time
 # from openai import OpenAI
 # from e2b_code_interpreter import Sandbox
 # from dotenv import load_dotenv
 
 # load_dotenv()
 
+# # Initialize API Clients
 # client = OpenAI(
 #   base_url="https://openrouter.ai/api/v1",
 #   api_key=os.getenv("OPENROUTER_API_KEY"),
 # )
 
-# MODEL = "qwen/qwen-2.5-coder-32b-instruct"
+# # Use the E2B key from .env (Look for both common names)
+# e2b_key = os.getenv("sandbox_key") or os.getenv("E2B_API_KEY")
+# if not e2b_key:
+#     raise Exception("❌ E2B API Key is missing! Check your .env file.")
+
+# MODEL = "google/gemini-2.5-flash-lite-preview-09-2025"
 
 # def build_and_execute_project(prompt: str, include_db: bool):
-#     # 1. UPDATE THE PROMPT: Demand a Flask Web App
+#     # 1. PROMPT: Use Tags for safe extraction
 #     system_msg = (
-#         "You are an expert developer. You MUST return strictly valid JSON. "
-#         "Write a complete, single-file Python Flask web application. "
+#         "You are an expert full-stack developer. "
+#         "Write a complete Python Flask web application. "
 #         "The Flask app MUST run on port 5000 and bind to host '0.0.0.0'. "
-#         "Include all HTML, CSS, and JS inside the Flask route as a single Python string. "
-#         "CRITICAL JSON RULES: "
-#         "1. You MUST properly escape ALL newlines as \\n inside the code string. "
-#         "2. You MUST properly escape ALL double quotes as \\\" inside the code string. "
-#         "3. DO NOT use render_template_string or Jinja syntax. "
-#         "4. Write normal JS/CSS without double-escaping curly braces. "
-#         "Format exactly like this:\n"
-#         "{\n"
-#         '  "explanation": "Flask app with HTML.",\n'
-#         '  "code": "from flask import Flask\\napp = Flask(__name__)\\n@app.route(\'/\')\\ndef home():\\n    html=\'<h1 style=\\\"color:red;\\\">Hi</h1>\'\\n    return html\\nif __name__ == \'__main__\':\\n    app.run(host=\'0.0.0.0\', port=5000)"\n'
-#         "}"
+#         "Include all HTML, CSS, and JS inside the Flask route as a standard Python string. "
+        
+#         "CRITICAL SYNTAX RULES:"
+#         "1. DO NOT use f-strings (f''') for the HTML content. Use standard triple quotes (''')."
+#         "2. DO NOT use Jinja2 templating syntax (no {{ }} or {% %}). Python will crash."
+#         "3. Handle ALL dynamic logic (like toggling Dark Mode or updating Charts) using client-side JavaScript (document.getElementById, event listeners), NOT server-side logic."
+        
+#         "DO NOT USE JSON. You MUST use these exact tags to separate your response:\n\n"
+#         "[EXPLANATION]\nWrite your short explanation here.\n[/EXPLANATION]\n\n"
+#         "[CODE]\nfrom flask import Flask\n...rest of code...\n[/CODE]"
 #     )
     
 #     if include_db:
 #         system_msg += " Include a SQLite database setup using SQLAlchemy."
 
-#     # 2. Get Code from AI
-#     response = client.chat.completions.create(
-#         model=MODEL,
-#         messages=[
-#             {"role": "system", "content": system_msg},
-#             {"role": "user", "content": prompt}
-#         ],
-#         response_format={ "type": "json_object" },
-#         max_tokens = 3000
-#     )
-    
-#     raw_output = response.choices[0].message.content.strip()
-#     print(raw_output)
-#     match = re.search(r'\{.*\}', raw_output, re.DOTALL)
-#     if match:
-#         raw_output = match.group(0)
+#     messages = [
+#         {"role": "system", "content": system_msg},
+#         {"role": "user", "content": prompt}
+#     ]
 
-#     parsed_data = json.loads(raw_output)
-#     generated_code = parsed_data.get("code", "")
-#     explanation = parsed_data.get("explanation", "")
+#     full_response = ""
+    
+#     # 2. THE LOOP: Robust 5-Round limit
+#     for chunk_number in range(1, 6):
+#         print(f"⏳ Generation Round {chunk_number}...")
+#         try:
+#             response = client.chat.completions.create(
+#                 model=MODEL,
+#                 messages=messages,
+#                 max_tokens=2000, 
+#                 temperature=0.7
+#             )
+            
+#             # --- DEFENSIVE CHECK 1: Did the API return garbage? ---
+#             if not response or not response.choices:
+#                 print("⚠️ API returned empty response. Retrying round...")
+#                 time.sleep(1) # Wait a bit before retrying
+#                 continue
+            
+#             chunk_text = response.choices[0].message.content
+#             if not chunk_text:
+#                 print("⚠️ API returned empty text. Retrying round...")
+#                 continue
+                
+#             # Handle "None" finish_reason (Common OpenRouter quirk)
+#             finish_reason = response.choices[0].finish_reason or "length" 
+            
+#             full_response += chunk_text
+            
+#             # If the AI is done, break the loop
+#             if finish_reason == "stop" or finish_reason == "end_turn":
+#                 print("✅ AI finished generating code!")
+#                 break 
+                
+#             print(f"⚠️ Token limit reached (Reason: {finish_reason}). Asking AI to continue...")
+            
+#             # Append the previous answer so the AI knows what it wrote
+#             messages.append({"role": "assistant", "content": chunk_text})
+#             messages.append({"role": "user", "content": "Continue exactly where you left off. Do not repeat code."})
+            
+#         except Exception as e:
+#             print(f"❌ Error during generation round {chunk_number}: {e}")
+#             # Don't break! Try to use what we have so far.
+#             break
 
-#     # 3. THE BIG CHANGE: Booting the Web Server
-#     # We remove the `with` statement so the sandbox stays alive!
-#     sandbox = Sandbox.create(api_key=os.getenv("sandbox_key"))
-    
-#     # Step A: Write the AI's code to a file in the sandbox
-#     sandbox.files.write("app.py", generated_code)
-    
-#     # Step B: Install Flask
-#     sandbox.commands.run("pip install flask")
-    
-#     # Step C: Run the server in the background so our API doesn't freeze
-#     sandbox.commands.run("python app.py", background=True)
-    
-#     # Step D: Get the public URL for port 5000
-#     preview_url = sandbox.get_host(5000)
+#     # 3. SMARTER EXTRACTION
+#     explanation = "No explanation provided."
+#     generated_code = ""
 
-#     return {
-#         "status": "success",
-#         "explanation": explanation,
-#         "code": generated_code,
-#         "preview_url": preview_url  # <-- We send this URL to the frontend!
-#     }
+#     # Extract Explanation
+#     exp_match = re.search(r'\[EXPLANATION\](.*?)\[/EXPLANATION\]', full_response, re.DOTALL | re.IGNORECASE)
+#     if exp_match:
+#         explanation = exp_match.group(1).strip()
+
+#     # Extract Code - Improved Fallback Logic
+#     code_match = re.search(r'\[CODE\](.*?)\[/CODE\]', full_response, re.DOTALL | re.IGNORECASE)
+#     if code_match:
+#         generated_code = code_match.group(1).strip()
+#     else:
+#         # FALLBACK: If [/CODE] is missing, grab everything AFTER [CODE]
+#         parts = full_response.split("[CODE]")
+#         if len(parts) > 1:
+#             generated_code = parts[1].strip()
+#         else:
+#             generated_code = full_response.strip()
+
+#     # Clean up Markdown (backticks) if present
+#     generated_code = generated_code.replace("```python", "").replace("```html", "").replace("```", "").strip()
+
+#     # 4. BOOT THE WEB SERVER IN THE CLOUD
+#     try:
+#         print("🚀 Booting E2B Sandbox...")
+#         sandbox = Sandbox.create(api_key=e2b_key)
+        
+#         print("📝 Writing code to app.py...")
+#         sandbox.files.write("app.py", generated_code)
+        
+#         print("📦 Installing Flask...")
+#         sandbox.commands.run("pip install flask")
+        
+#         print("🏃 Starting Flask server & capturing logs...")
+#         sandbox.commands.run("python app.py > server.log 2>&1", background=True)
+        
+#         # Wait for Flask to boot
+#         print("⏳ Waiting for server to stabilize...")
+#         time.sleep(3) 
+        
+#         # Read logs to catch syntax errors
+#         server_logs = "No logs available."
+#         try:
+#             server_logs = sandbox.files.read("server.log")
+#             print("--- FLASK SERVER LOGS ---")
+#             print(server_logs)
+#         except Exception:
+#             pass
+
+#         preview_url = sandbox.get_host(5000)
+
+#         return {
+#             "status": "success",
+#             "explanation": explanation,
+#             "code": generated_code,
+#             "preview_url": preview_url,
+#             "sandbox_output": server_logs
+#         }
+#     except Exception as e:
+#         return {"status": "error", "error": str(e)}
+
 
 import os
 import re
@@ -168,23 +169,32 @@ client = OpenAI(
   api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-MODEL = "qwen/qwen-2.5-coder-32b-instruct"
+# Using Gemini 2.0 Flash for speed and context
+MODEL = "google/gemini-2.5-flash-lite-preview-09-2025"
 
 def build_and_execute_project(prompt: str, include_db: bool):
-    # 1. NEW PROMPT: Use Tags instead of JSON for bulletproof looping
+    # 1. NEW PROMPT: LANGUAGE AGNOSTIC
     system_msg = (
-        "You are an expert developer. "
-        "Write a complete Python Flask web application. "
-        "The Flask app MUST run on port 5000 and bind to host '0.0.0.0'. "
-        "Include all HTML, CSS, and JS inside the Flask route as a Python string. "
-        "DO NOT USE JSON. You MUST use these exact tags to separate your response:\n\n"
-        "[EXPLANATION]\nWrite your short explanation here.\n[/EXPLANATION]\n\n"
-        "[CODE]\nfrom flask import Flask\n...rest of code...\n[/CODE]"
+        "You are an expert Full-Stack Architect. "
+        "Analyze the user's request and choose the best language (Node.js, Python, Go, etc.). "
+        
+        "CRITICAL RULES: "
+        "1. You MUST generate a file named 'setup.sh'. This script must: \n"
+        "   - Install dependencies (e.g., 'npm install', 'pip install', 'go mod init myapp && go get'). \n"
+        "   - START the server in the foreground (do not use '&' or 'nohup'). \n"
+        "2. The server application MUST listen on HOST '0.0.0.0' and PORT 5000. \n"
+        "   - DO NOT use localhost, 127.0.0.1, port 8080, or port 3000. \n"
+        "3. Language Specific Listen Commands (YOU MUST USE THESE EXACTLY): \n"
+        "   - Node.js/Express: `app.listen(5000, '0.0.0.0', ...)` \n"
+        "   - Python/Flask: `app.run(host='0.0.0.0', port=5000)` \n"
+        "   - Go (Golang): `http.ListenAndServe(\":5000\", nil)` \n"
+        "4. Use <file name='filename'>...code...</file> tags for every single file. \n"
+        "5. Example setup.sh for Go: \n"
+        "   go mod init myapp \n"
+        "   go mod tidy \n"
+        "   go run main.go \n"
     )
     
-    if include_db:
-        system_msg += " Include a SQLite database setup using SQLAlchemy."
-
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": prompt}
@@ -192,75 +202,103 @@ def build_and_execute_project(prompt: str, include_db: bool):
 
     full_response = ""
     
-    # 2. THE LOOP: Run up to 3 times to get all the code
-    for chunk_number in range(1, 4):
+    # 2. GENERATION LOOP
+    for chunk_number in range(1, 6):
         print(f"⏳ Generation Round {chunk_number}...")
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            max_tokens=1500 # Safe limit for the free tier
-        )
-        
-        chunk_text = response.choices[0].message.content
-        finish_reason = response.choices[0].finish_reason
-        
-        full_response += chunk_text
-        
-        if finish_reason == "stop" or finish_reason != "length":
-            print("✅ AI finished generating code!")
-            break # The AI is completely done, break the loop!
+        try:
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                max_tokens=4000,
+                temperature=0.7
+            )
             
-        print("⚠️ Token limit reached. Asking AI to continue...")
-        # Tell the AI to remember what it just said, and ask it to keep going
-        messages.append({"role": "assistant", "content": chunk_text})
-        messages.append({"role": "user", "content": "Continue exactly where you left off. Do not repeat anything. Do not add intro text."})
+            if not response or not response.choices:
+                continue
+            
+            chunk_text = response.choices[0].message.content
+            full_response += chunk_text
+            
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason == "stop" or finish_reason == "end_turn":
+                print("✅ AI finished generating code!")
+                break 
+                
+            messages.append({"role": "assistant", "content": chunk_text})
+            messages.append({"role": "user", "content": "Continue exactly where you left off."})
+            
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            break
 
-    # 3. EXTRACT THE DATA USING REGEX (Goodbye JSON errors!)
+    # 3. PARSING: Robust Logic
+    files = {}
     explanation = "No explanation provided."
-    generated_code = ""
 
+    # Extract explanation
     exp_match = re.search(r'\[EXPLANATION\](.*?)\[/EXPLANATION\]', full_response, re.DOTALL | re.IGNORECASE)
     if exp_match:
         explanation = exp_match.group(1).strip()
 
-    code_match = re.search(r'\[CODE\](.*?)\[/CODE\]', full_response, re.DOTALL | re.IGNORECASE)
-    if code_match:
-        generated_code = code_match.group(1).strip()
-    else:
-        # Fallback just in case it forgets the closing tag
-        generated_code = full_response.replace("[CODE]", "").strip()
+    # Extract files
+    file_pattern = re.compile(r'<file name=[\'"](.*?)[\'"]>(.*?)</file>', re.DOTALL | re.IGNORECASE)
+    
+    for match in file_pattern.finditer(full_response):
+        filename = match.group(1).strip()
+        code_content = match.group(2).strip()
+        
+        # CLEANUP: Remove markdown code blocks if the AI added them
+        code_content = re.sub(r'^```[a-z]*\n', '', code_content, flags=re.MULTILINE)
+        code_content = re.sub(r'\n```$', '', code_content, flags=re.MULTILINE)
+        
+        files[filename] = code_content
+    
+    if "setup.sh" not in files:
+        # Fallback if AI forgot setup.sh (forces Python default)
+        print("⚠️ AI forgot setup.sh, creating fallback...")
+        files["setup.sh"] = "pip install flask\npython app.py > server.log 2>&1"
 
-    # 4. BOOT THE WEB SERVER IN THE CLOUD
+    # 4. EXECUTION: The Universal Runner
     try:
+        e2b_key = os.getenv("sandbox_key")
         print("🚀 Booting E2B Sandbox...")
-        sandbox = Sandbox.create(api_key=os.getenv("sandbox_key"))
-
-        print("writing code to app.py")
-        sandbox.files.write("app.py", generated_code)
-
-        print("installing framework")
-        sandbox.commands.run("pip install flask")
-
-        sandbox.commands.run("python app.py > server.log 2>&1", background=True)
-
-        time.sleep(5)
-
+        sandbox = Sandbox.create(api_key=e2b_key)
+        
+        # Write files
+        for fname, fcontent in files.items():
+            if "/" in fname:
+                folder = fname.rsplit("/", 1)[0]
+                sandbox.commands.run(f"mkdir -p {folder}")
+            sandbox.files.write(fname, fcontent)
+        
+        print("🛠️ Installing & Starting Server...")
+        
+        # Make script executable
+        sandbox.commands.run("chmod +x setup.sh")
+        
+        # Run the generic setup script
+        sandbox.commands.run("sh ./setup.sh", background=True)
+        
+        # Wait longer for Node/Go builds
+        time.sleep(10) 
+        
+        # Read Logs
+        server_logs = "No logs."
         try:
             server_logs = sandbox.files.read("server.log")
-            print("--- FLASK SERVER LOGS ---")
-            print(server_logs)
-        except Exception:
-            server_logs = "Could not read server logs."
-            
-        preview_url = sandbox.get_host(5000)
+        except: pass
+
+        # GET PREVIEW URL (With Protocol Fix)
+        host = sandbox.get_host(5000)
+        preview_url = f"https://{host}"  # Force HTTPS to prevent local inception
+        print("preview url", preview_url)
 
         return {
             "status": "success",
             "explanation": explanation,
-            "code": generated_code,
+            "files": files,
             "preview_url": preview_url,
             "sandbox_output": server_logs
-
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
